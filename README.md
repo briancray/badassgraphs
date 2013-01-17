@@ -16,3 +16,19 @@ Graphing library built on d3
 * More to come, including pie/donut, scatter plot, bubble
 
 Also, all plots can be grouped by series or points, stacked, and/or normalized to [0,1]
+
+## What browsers does it support?
+
+Any browser that supports `<svg>`
+
+* IE 9+
+* Firefox 3+
+* Chrome 4+
+* Safari 3.2+
+* Opera 9+
+
+For a full list see http://caniuse.com/svg
+
+## Does it work with AMD and CommonJS?
+
+Yes
