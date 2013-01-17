@@ -651,7 +651,7 @@ BadAssGraph.Line = {
             .attr('clip-path', function(d, i) {
                 return 'url(#hover-' + i +')';
             })
-            .style('fill-opacity', 0, true)
+            .style('fill-opacity', 0)
             .on('mouseover', mouseover)
             .on('mouseout', mouseout);
 
