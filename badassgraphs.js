@@ -151,11 +151,14 @@ BadAssGraph.prototype = {
 
     get_dimensions: function () {
         var self = this,
-            settings = self.settings;
+            settings = self.settings,
+            margins = settings.margins,
+            el = self.el;
+
 
         // set width and height - margins
-        settings.height = self.el.clientHeight - settings.margins.top - settings.margins.bottom;
-        settings.width = self.el.clientWidth - settings.margins.left - settings.margins.right;
+        settings.height = el.clientHeight - margins.top - margins.bottom;
+        settings.width = el.clientWidth - margins.left - margins.right;
 
         return self;
     },
