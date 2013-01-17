@@ -466,7 +466,20 @@ BadAssGraph.prototype = {
     },
 
     add_hover: function () {
-        return this;
+        var self = this,
+            groups = self.groups,
+            mouseover = function (d, i) {
+                self.current_point = {
+                    series: d.series,
+                    point: d,
+                    index: i,
+                    el: d3.event.target
+                };
+            };
+
+        groups.series.selectAll('.series-point').on('mouseover', mouseover);
+
+        return self;
     },
 
     friendly_name: function (s) {
@@ -778,23 +791,6 @@ BadAssGraph.Column = {
         ]); 
 
         return self;
-    },
-
-    add_hover: function () {
-        var self = this,
-            groups = self.groups,
-            mouseover = function (d, i) {
-                self.current_point = {
-                    series: d.series,
-                    point: d,
-                    index: i,
-                    el: d3.event.target
-                };
-            };
-
-        groups.series.selectAll('.series-point').on('mouseover', mouseover);
-
-        return self;
     }
 };
 
@@ -935,23 +931,6 @@ BadAssGraph.Bar = {
         add_stylesheet_rules([
             [selector + ' rect', ['stroke', color], ['fill', color], ['shape-rendering', 'crispEdges']]
         ]); 
-
-        return self;
-    },
-
-    add_hover: function () {
-        var self = this,
-            groups = self.groups,
-            mouseover = function (d, i) {
-                self.current_point = {
-                    series: d.series,
-                    point: d,
-                    index: i,
-                    el: d3.event.target
-                };
-            };
-
-        groups.series.selectAll('.point').on('mouseover', mouseover);
 
         return self;
     }
