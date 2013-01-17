@@ -957,6 +957,8 @@ BadAssGraph.Bar = {
     }
 };
 
-window.BadAssGraph = BadAssGraph;
+if (typeof define !== 'undefined' && define.amd) { return BadAssGraph; }
+else if (typeof module !== 'undefined' && module.exports) { module.exports = BadAssGraph; }
+else { window.BadAssGraph = BadAssGraph; }
 
 })(window, d3);
