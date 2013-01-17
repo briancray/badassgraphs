@@ -1,6 +1,6 @@
-;"use strict";
+;(function (window, d3, undefined) {
 
-(function (window, d3, undefined) {
+"use strict";
 
 var get_type = function (v) {
     return Object.prototype.toString.call(v).split(' ')[1].split(']')[0].toLowerCase();
