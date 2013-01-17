@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>d3</title>
+    <style type="text/css">
+    body {
+        font: 10px arial, sans-serif;
+    }
+
+    #graph {
+        width: 100%;
+        height: 500px;
+    }
+    </style>
+</head>
+<body>
+
+<div id="graph"></div>
+<div id="tooltip"></div>
+
+<script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/d3/3.0.1/d3.v3.min.js"></script>
+<script type="text/javascript" src="badassgraphs.js"></script>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function() {
+    var g = BadAssGraph('#graph');
+});
+</script>
+
+</body>
+</html>
