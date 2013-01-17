@@ -28,3 +28,7 @@ Any browser that supports `<svg>`
 * Opera 9+
 
 For a full list see http://caniuse.com/svg
+
+## Does it work with AMD and CommonJS?
+
+Yes
