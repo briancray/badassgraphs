@@ -156,11 +156,9 @@ BadAssGraph.prototype = {
             };
         convertCSStoinline(new_version.childNodes);
         console.log(new_version);
-        /*
         var img = document.createElement('img');
-        img.setAttribute('src', 'data:image/svg+xml;base64,' + new_version.innerHTML);
+        img.setAttribute('src', 'data:image/svg+xml;base64,' + btoa(new_version.innerHTML));
         document.body.appendChild(img);
-        */
     },
 
     groups: {},
