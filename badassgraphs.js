@@ -15,8 +15,10 @@ extend = function (target, source) {
     return target;
 },
 
+// refrerence to injected stylesheet that's used to apply default styles
 stylesheet,
 
+// used to add styles to a stylesheet rather than inline, which respects designer's CSS
 add_stylesheet_rules = function (decls) {
     for (var i=0, dl = decls.length; i < dl; i++) {
         var j = 1, decl = decls[i], selector = decl[0], rulesStr = '';
@@ -38,6 +40,7 @@ add_stylesheet_rules = function (decls) {
     }
 };
 
+// inject stylesheet for default styles
 (function () {
     var style = document.createElement('style');
     var head = document.getElementsByTagName('head')[0];
@@ -50,13 +53,12 @@ add_stylesheet_rules = function (decls) {
 
 /*
 data: [{
-    x: 0,
-    y: 10,
     name: 'series', // optional
     symbol: 'circle', // optional
     color: '#eee', // optional
     point_size: 30, // optional
     interpolation: null, //optional
+    data: [{x: 0, y: 1}, {x: 1, y: 2}, ...]
 }, ...]
 scales: {
     x: [0, 10] or d3 scale
@@ -71,18 +73,27 @@ group: 'series' or 'points'
 stack: true or false, stack the data (modified by group)
 normalize: true of false, normalize points as a proportion of max
 point_size: 0, number size of points
+inner_radius: 10,
+degrees: 360,
 */
 
 var BadAssGraph = function (el, options) {
+    // if this wasn't instantiated, return an instantiation (makes "new" unnecessary)
     if (!(this instanceof BadAssGraph)) {
         return new BadAssGraph(el, options);
     }
     var self = this;
 
+    // keep a reference to the parent
     self.el = el = get_type(el) === 'string' ? d3.select(el)[0][0] : el;
+    
+    // merge the options with the defaults
     self.merge_options(el, options);
+
+    // extend BadAssGraph with the type of graph requested
     self = extend(self, BadAssGraph[self.settings.type[0].toUpperCase() + self.settings.type.slice(1).toLowerCase()]);
 
+    // go through the draw steps
     self.add_canvas()
         .add_data(self.settings.data)
         .add_scales(self.settings.scales)
@@ -102,11 +113,55 @@ BadAssGraph.defaults = {
     point_size: 0, // size of points
     group: 'points', // whether to group certain graphs by series or points (x-value)
     stack: false, // whether to stack the data
-    normalize: false // whether to normalize the data
+    normalize: false, // whether to normalize the data
+    inner_radius: 10, // inner radius of pie graphs
+    degrees: 360 // degrees of total pie graph
 };
 
 BadAssGraph.prototype = {
     constructor: BadAssGraph,
+
+    toPNG: function () {
+        // this is a work in progress. right now it just adds all the CSS inline and outputs the node to the console for testing
+        var new_version = this.el.cloneNode(true),
+            sheets = document.styleSheets,
+            matches_selector = function (selector, element) { 
+                var els = Array.prototype.slice.call(new_version.querySelectorAll(selector), 0);
+                return els.filter(function (el) {
+                    return el === element; 
+                }).length;
+            },
+            grabCSS = function (el) {
+                var o = '';
+                for (var x in sheets) {
+                    var rules = sheets[x].rules || sheets[x].cssRules;
+                    for (var y in rules) {
+                        if (matches_selector(rules[y].selectorText, el)) {
+                            o += rules[y].cssText.match('{\w*([^}]*)}')[1];
+                        }
+                    }
+                }
+                return o;
+            },
+            convertCSStoinline = function (children) {
+                children = Array.prototype.slice.call(children, 0);
+                children.forEach(function (child) {
+                    if (!child.setAttribute) {
+                    }
+                    else {
+                        child.nodeType === 1 && child.setAttribute('style', [child.getAttribute('style') || '', grabCSS(child)].join(';'));
+                    }
+                    convertCSStoinline(child.childNodes);
+                });
+            };
+        convertCSStoinline(new_version.childNodes);
+        console.log(new_version);
+        /*
+        var img = document.createElement('img');
+        img.setAttribute('src', 'data:image/svg+xml;base64,' + new_version.innerHTML);
+        document.body.appendChild(img);
+        */
+    },
 
     groups: {},
 
@@ -154,7 +209,6 @@ BadAssGraph.prototype = {
             settings = self.settings,
             margins = settings.margins,
             el = self.el;
-
 
         // set width and height - margins
         settings.height = el.clientHeight - margins.top - margins.bottom;
@@ -215,7 +269,7 @@ BadAssGraph.prototype = {
         var self = this,
             settings = self.settings;
 
-        // if data was passed, set settings.data to argument
+        // if no data was passed, generate data
         if (!d.length) {
             var histogram, min;
             // generate random data: 3 series, between 0 and 120 with a distribution of 20
@@ -259,7 +313,7 @@ BadAssGraph.prototype = {
             return bm - am
         });
 
-        // set settings.data to random data
+        // set settings.data to passed data
         settings.data = d;
 
         // stack the data if it's in the settings
@@ -325,7 +379,6 @@ BadAssGraph.prototype = {
             group = settings.group,
             type = settings.type;
 
-
         if (type === 'line' || group === 'points') {
             // add the previous point's value to this point
             data.forEach(function (series, i1) {
@@ -338,6 +391,7 @@ BadAssGraph.prototype = {
             });
         }
         else if (group === 'series') {
+            // reduce each series to the sum of the points
             data.forEach(function (series) {
                 series.data = [series.data.reduce(function (a, b) {
                     a.y += b.y;
@@ -356,13 +410,14 @@ BadAssGraph.prototype = {
             max = Number.NEGATIVE_INFINITY,
             max_values = [];
 
+        // find the maximum y value
         data[0].data.forEach(function (d, i) {
             max = Number.NEGATIVE_INFINITY;
             var s_max = d3.max(data, function (series) { return series.data[i].y + series.data[i].y0 });
             max_values.push(Math.max(s_max, max));
         });
 
-        // add the previous point's value to this point
+        // set each point as a proportion of the maximum y
         data.forEach(function (series) {
             series.data.forEach(function (d, i) {
                 d.y /= max_values[i];
@@ -373,7 +428,6 @@ BadAssGraph.prototype = {
         return self;
     },
         
-
     add_scales: function (scales) {
         scales = scales || {};
 
@@ -453,6 +507,7 @@ BadAssGraph.prototype = {
                 // move axis group, respecting original margins
                 .attr('transform', translation);
 
+            // create a group for grid lines that align with the axis ticks
             groups.grid.append('g')
                 .classed(axis.position + '-grid', true)
                 .call(svg_axis.tickSize(-settings[marginize]).tickFormat(''))
@@ -480,13 +535,14 @@ BadAssGraph.prototype = {
                 };
             };
 
+        // ensures that mouseover events have access to .get_point()
         groups.series.selectAll('.series-point').on('mouseover', mouseover);
 
         return self;
     },
 
     friendly_name: function (s) {
-        // generate a name that is appropriate for classing
+        // generate a name that is appropriate for CSS classes
         return s.toLowerCase().replace(/[^a-z1-9]/g, '-');
     },
 
@@ -513,6 +569,7 @@ BadAssGraph.Line = {
                 .classed('series', true);
         });
         
+        // add each series to the graph
         data.forEach(function (d, i) {
             self.add_series(d, i);
         });
@@ -619,6 +676,7 @@ BadAssGraph.Line = {
                 point_map[i].el.dispatchEvent(evt);
             };
         
+        // generate the data for the augmented points
         data.forEach(function (series, i1) {
             var points = groups.lines[i1][0][0].getElementsByClassName('series-point');
             all_points = all_points.concat(series.data.map(function (d, i2) {
@@ -632,7 +690,7 @@ BadAssGraph.Line = {
             }));
         });
 
-        // hover points
+        // create clipping areas for augmented hover points
         group.selectAll('clipPath')
             .data(all_points)
             .enter().append('clipPath')
@@ -644,6 +702,7 @@ BadAssGraph.Line = {
             .attr('cy', function(d) { return d[1] })
             .attr('r', 20);
 
+        // generate voronoi overlay of points
         group.selectAll('path')
             .data(d3.geom.voronoi(all_points))
             .enter()
@@ -654,7 +713,7 @@ BadAssGraph.Line = {
             .attr('clip-path', function(d, i) {
                 return 'url(#hover-' + i +')';
             })
-            .style('fill-opacity', 0)
+            .style('fill', 'rgba(0, 0, 0, 0)')
             .on('mouseover', mouseover)
             .on('mouseout', mouseout);
 
@@ -688,8 +747,10 @@ BadAssGraph.Column = {
         var self = this,
             settings = self.settings;
 
+        // call the origin add_scales
         BadAssGraph.prototype.add_scales.call(self);
 
+        // generate x scales appropriate for a bar graph, based on grouping of points
         self['add_scales_' + settings.group]()
 
         return self;
@@ -933,6 +994,124 @@ BadAssGraph.Bar = {
 
         add_stylesheet_rules([
             [selector + ' rect', ['stroke', color], ['fill', color], ['shape-rendering', 'crispEdges']]
+        ]); 
+
+        return self;
+    }
+};
+
+BadAssGraph.Pie = {
+    draw: function () {
+        var self = this,
+            settings = self.settings,
+            groups = self.groups,
+            data = settings.data;
+
+        // add groups for each series
+        groups.pies = data.map(function (d, i) {
+            return groups.series.append('g')
+                .classed(d.class_name, true)
+                .classed('series', true);
+        });
+
+        self.prev_outer_angle = self.settings.min.x;
+        self.prev_inner_angle = self.settings.min.y;
+
+        data.forEach(function (d, i) {
+            self.add_series(d, i);
+        });
+
+        return self;
+    },
+
+    prev_outer_angle: 0,
+    prev_inner_angle: 0,
+
+    add_scales: function () {
+        var self = this,
+            settings = self.settings,
+            data = settings.data;
+
+        BadAssGraph.prototype.add_scales.call(self);
+
+        var sum = data.reduce(function (value, series) {
+            return value + series.data.reduce(function (value2, d) {
+                return value2 + d.y;
+            }, 0);
+        }, settings.min.y);
+
+        self.add_scale('y', d3.scale.linear().domain([settings.min.y, sum]).range([0, settings.degrees * (Math.PI/180)]));
+        self.add_scale('x1', d3.scale.linear().domain([settings.min.x, settings.max.x]));
+        self.add_scale('y1', d3.scale.linear().domain([settings.min.y, settings.max.y]).range([settings.height / 4 - settings.inner_radius + 2, settings.height / 2]));
+
+        return self;
+    },
+
+    add_series: function (series, index) {
+        var self = this,
+            settings = self.settings,
+            scales = self.scales,
+            group = self.groups.pies[index],
+            selector = '.' + series.class_name,
+            histogram = series.data,
+            sum = series.data.reduce(function (value, d) {
+                return value + d.y;
+            }, 0),
+            x = scales.x,
+            y = scales.y,
+            x1 = scales.x1.copy().range([y(self.prev_inner_angle), y(self.prev_inner_angle + sum)]),
+            y1 = scales.y1,
+            color = series.color || scales.colors(index),
+            inner_arc = d3.svg.arc()
+                .innerRadius(settings.inner_radius)
+                .outerRadius(settings.height / 4 - settings.inner_radius)
+                .startAngle(function (d) {
+                    return y(self.prev_inner_angle);
+                })
+                .endAngle(function (d) {
+                    return y(self.prev_inner_angle += d);
+                }),
+            outer_arc = d3.svg.arc()
+                .innerRadius(y1(settings.min.y))
+                .outerRadius(function (d) {
+                    return y1(d.y)
+                })
+                .startAngle(function (d) {
+                    return x1(self.prev_outer_angle);
+                })
+                .endAngle(function (d) {
+                    return x1(self.prev_outer_angle = d.x);
+                });
+                // padding = (padding = data.length / settings.height * 2) > .5 ? .5 : padding;
+
+        // prepare for animation: position group below graph (out of site)
+        group.attr('transform', 'translate(0,' + settings.height + ')')
+
+        // append the fill to the group
+        group.selectAll('.first')
+            .data([sum])
+            .enter()
+            .append('path')
+            .classed('series-point', true)
+            .attr('d', inner_arc);
+
+        group.selectAll('.second')
+            .data(histogram)
+            .enter()
+            .append('path')
+            .classed('series-point', true)
+            .attr('d', outer_arc);
+
+        // animate the group upward into view
+        group.transition()
+            .delay(index * 500)
+            .duration(300)
+            .attr('transform', 'translate(' + settings.width / 2 + ',' + settings.height / 2 + ')');
+
+        self.prev_outer_angle = settings.min.x;
+
+        add_stylesheet_rules([
+            [selector + ' .series-point', ['stroke', color], ['fill', color]],
         ]); 
 
         return self;
