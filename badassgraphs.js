@@ -42,8 +42,8 @@ add_stylesheet_rules = function (decls) {
 
 // inject stylesheet for default styles
 (function () {
-    var style = document.createElement('style');
-    var head = document.getElementsByTagName('head')[0];
+    var style = document.createElement('style'),
+        head = document.getElementsByTagName('head')[0];
     head.childNodes[0] ? head.insertBefore(style, head.childNodes[0]) : head.appendChild(style);
     if (!window.createPopup) { /* For Safari */
        style.appendChild(document.createTextNode(''));
@@ -86,6 +86,24 @@ var BadAssGraph = function (el, options) {
 
     // keep a reference to the parent
     self.el = el = get_type(el) === 'string' ? d3.select(el)[0][0] : el;
+
+    // collection of <g>s
+    self.groups = {};
+
+    // reference to svg
+    self.canvas = null;
+
+    // reference to scales
+    self.scales = {};
+
+    // reference to events
+    self.events = null;
+
+    // reference to ranges
+    self.ranges = {};
+
+    // stores last point interacted with
+    self.current_point = {};
     
     // merge the options with the defaults
     self.merge_options(el, options);
@@ -115,7 +133,8 @@ BadAssGraph.defaults = {
     stack: false, // whether to stack the data
     normalize: false, // whether to normalize the data
     inner_radius: 10, // inner radius of pie graphs
-    degrees: 360 // degrees of total pie graph
+    degrees: 360, // degrees of total pie graph
+    starting_degrees: 0,
 };
 
 BadAssGraph.prototype = {
@@ -160,16 +179,6 @@ BadAssGraph.prototype = {
         img.setAttribute('src', 'data:image/svg+xml;base64,' + btoa(new_version.innerHTML));
         document.body.appendChild(img);
     },
-
-    groups: {},
-
-    canvas: null,
-
-    scales: {},
-
-    events: null,
-
-    ranges: {},
 
     merge_options: function (el, options) {
         var self = this,
@@ -300,16 +309,6 @@ BadAssGraph.prototype = {
             });
         });
 
-        // sort the data so the lowest line has the highest z-index
-        d.sort(function (a, b) {
-            var am = d3.median(a.data, function (d) {
-                    return d.y;
-                }),
-                bm = d3.median(b.data, function (d) {
-                    return d.y;
-                });
-            return bm - am
-        });
 
         // set settings.data to passed data
         settings.data = d;
@@ -323,6 +322,17 @@ BadAssGraph.prototype = {
         if (settings.normalize) {
             self.normalize_data();
         }
+
+        // sort the data so the lowest line has the highest z-index
+        d.sort(function (a, b) {
+            var am = d3.median(a.data, function (d) {
+                    return d.y0 + d.y;
+                }),
+                bm = d3.median(b.data, function (d) {
+                    return d.y0 + d.y;
+                });
+            return bm - am
+        });
 
         // record the x and y boundaries
         self.minmax_data();
@@ -547,10 +557,7 @@ BadAssGraph.prototype = {
     get_point: function () {
         // return last point interacted with
         return this.current_point;
-    },
-
-    // stores last point interacted with
-    current_point: {}
+    }
 };
 
 BadAssGraph.Line = {
@@ -634,7 +641,7 @@ BadAssGraph.Line = {
 
         // animate the group upward into view
         group.transition()
-            .delay(index * 50)
+            .delay(index * 100)
             .duration(300)
             .attr('transform', 'translate(0,0)');
 
@@ -844,7 +851,7 @@ BadAssGraph.Column = {
             .classed('series-point', true);
 
         group.transition()
-            .delay(index * 50)
+            .delay(index * 100)
             .duration(300)
             .attr('transform', 'translate(0,0)');
 
@@ -1012,8 +1019,7 @@ BadAssGraph.Pie = {
                 .classed('series', true);
         });
 
-        self.prev_outer_angle = self.settings.min.x;
-        self.prev_inner_angle = self.settings.min.y;
+        self.prev_angle = self.settings.min.y;
 
         data.forEach(function (d, i) {
             self.add_series(d, i);
@@ -1022,8 +1028,6 @@ BadAssGraph.Pie = {
         return self;
     },
 
-    prev_outer_angle: 0,
-    prev_inner_angle: 0,
 
     add_scales: function () {
         var self = this,
@@ -1038,9 +1042,7 @@ BadAssGraph.Pie = {
             }, 0);
         }, settings.min.y);
 
-        self.add_scale('y', d3.scale.linear().domain([settings.min.y, sum]).range([0, settings.degrees * (Math.PI/180)]));
-        self.add_scale('x1', d3.scale.linear().domain([settings.min.x, settings.max.x]));
-        self.add_scale('y1', d3.scale.linear().domain([settings.min.y, settings.max.y]).range([settings.height / 4 - settings.inner_radius + 2, settings.height / 2]));
+        self.add_scale('y', d3.scale.linear().domain([settings.min.y, sum]).range([settings.starting_degrees * (Math.PI/180), (settings.starting_degrees + settings.degrees) * (Math.PI/180)]));
 
         return self;
     },
@@ -1052,59 +1054,53 @@ BadAssGraph.Pie = {
             group = self.groups.pies[index],
             selector = '.' + series.class_name,
             histogram = series.data,
-            sum = series.data.reduce(function (value, d) {
-                return value + d.y;
-            }, 0),
-            x = scales.x,
             y = scales.y,
-            x1 = scales.x1.copy().range([y(self.prev_inner_angle), y(self.prev_inner_angle + sum)]),
-            y1 = scales.y1,
             color = series.color || scales.colors(index),
-            inner_arc = d3.svg.arc()
+            prev_angle = self.prev_angle,
+            arc0 = d3.svg.arc()
                 .innerRadius(settings.inner_radius)
-                .outerRadius(settings.height / 4 - settings.inner_radius)
+                .outerRadius(settings.inner_radius)
                 .startAngle(function (d) {
-                    return y(self.prev_inner_angle);
+                    return y(prev_angle);
                 })
                 .endAngle(function (d) {
-                    return y(self.prev_inner_angle += d);
+                    return y(prev_angle += d.y);
                 }),
-            outer_arc = d3.svg.arc()
-                .innerRadius(y1(settings.min.y))
-                .outerRadius(function (d) {
-                    return y1(d.y)
-                })
+            arc = d3.svg.arc()
+                .innerRadius(settings.inner_radius)
+                .outerRadius(settings.height / 2 - settings.inner_radius)
                 .startAngle(function (d) {
-                    return x1(self.prev_outer_angle);
+                    return y(self.prev_angle);
                 })
                 .endAngle(function (d) {
-                    return x1(self.prev_outer_angle = d.x);
+                    return y(self.prev_angle += d.y);
                 });
-                // padding = (padding = data.length / settings.height * 2) > .5 ? .5 : padding;
 
         // prepare for animation: position group below graph (out of site)
-        group.attr('transform', 'translate(0,' + settings.height + ')')
+        group.attr('transform', 'translate(' + settings.width / 2 + ',' + settings.height / 2 + ')');
 
         // append the fill to the group
-        group.selectAll('.first')
-            .data([sum])
+        group.selectAll('path')
+            .data(histogram)
             .enter()
             .append('path')
             .classed('series-point', true)
-            .attr('d', inner_arc);
-
+            .attr('d', arc0);
+        /*
         group.selectAll('.second')
             .data(histogram)
             .enter()
             .append('path')
             .classed('series-point', true)
             .attr('d', outer_arc);
+        */
 
         // animate the group upward into view
-        group.transition()
-            .delay(index * 500)
+        group.selectAll('path')
+            .transition()
+            .delay(index * 100)
             .duration(300)
-            .attr('transform', 'translate(' + settings.width / 2 + ',' + settings.height / 2 + ')');
+            .attr('d', arc);
 
         self.prev_outer_angle = settings.min.x;
 
