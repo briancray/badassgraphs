@@ -1068,7 +1068,7 @@ BadAssGraph.Pie = {
                 }),
             arc = d3.svg.arc()
                 .innerRadius(settings.inner_radius)
-                .outerRadius(settings.height / 2 - settings.inner_radius)
+                .outerRadius(settings.height / 2)
                 .startAngle(function (d) {
                     return y(self.prev_angle);
                 })
