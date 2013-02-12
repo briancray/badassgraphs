@@ -4,8 +4,9 @@ Graphing library built on d3
 
 ## Why use it?
 
-* The same data format can be used for all graphs produced by BadAssGraphs
+* The same data format can be used for aany graph produced by BadAssGraphs
 * Style it with CSS - Applies no inline styles and has clear class names like .all-series and .bottom-axis
+* Easy to attach mouse events to points
 * Very customizable
 
 ## What kind of graphs can it make?
@@ -15,8 +16,6 @@ Graphing library built on d3
 * Bar graphs
 * Pie graphs
 * More to come, including scatter plot, bubble
-
-Also, all plots can be grouped by series or points, stacked, and/or normalized to [0,1]
 
 ## What browsers does it support?
 

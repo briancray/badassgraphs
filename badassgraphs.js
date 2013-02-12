@@ -51,28 +51,6 @@ add_stylesheet_rules = function (decls) {
     stylesheet = document.styleSheets[0];
 })();
 
-/*
-data: [{
-    name: 'series', // optional
-    symbol: 'circle', // optional
-    color: '#eee', // optional
-    point_size: 30, // optional
-    interpolation: null, //optional
-    values: [{x: 0, y: 1}, {x: 1, y: 2}, ...]
-}, ...]
-type: 'line' or 'column' or 'bar'
-interpolation: 'basis', 'cardinal' (default) or 'linear' (see https://github.com/mbostock/d3/wiki/SVG-Shapes#wiki-line_interpolate for options)
-colors: ['#000', '#fff'] or d3 scale (see https://github.com/mbostock/d3/wiki/Ordinal-Scales#wiki-category10 for ready d3 scales)
-margins: '0' or {top: 0, right: 0, bottom: 0, left: 0},
-symbols: ['circle', 'triangle'] or d3 scale (see https://github.com/mbostock/d3/wiki/SVG-Shapes#wiki-symbol_type for symbols)
-group: 'series' or 'points'
-stack: true or false, stack the data (modified by group)
-normalize: true of false, normalize points as a proportion of max
-point_size: 0, number size of points
-inner_radius: 10,
-degrees: 360,
-*/
-
 var BadAssGraph = function (el, options) {
     // if this wasn't instantiated, return an instantiation (makes "new" unnecessary)
     if (!(this instanceof BadAssGraph)) {
