@@ -82,16 +82,16 @@ var BadAssGraph = function (el, options) {
     // merge the options with the defaults
     self.merge_options(el, options);
 
+    // event handlers
+    self.handlers = {};
+
     // extend BadAssGraph with the type of graph requested
     self = extend(self, BadAssGraph[self.settings.type[0].toUpperCase() + self.settings.type.slice(1).toLowerCase()]);
 
-    // go through the draw steps
-    self.add_canvas()
-        .add_data()
-        .add_scales()
-        .add_axis()
-        .draw()
-        .add_hover();
+    // add data if passed through settings
+    if (self.settings.data) {
+        self.add_data();
+    }
 
     return self;
 };
@@ -100,7 +100,7 @@ BadAssGraph.defaults = {
     type: 'line', // line, bar, column, pie
     colors: d3.scale.category10(), // default color scale per series
     margins: 0, // margins of the plotting area (axis sit outside of margins)
-    axis: [], // array of positions or array of options
+    axis: null, // array of positions or array of options
     data: null // data to plot, null will generate data
 };
 
@@ -149,12 +149,13 @@ BadAssGraph.prototype = {
     add_canvas: function () {
         var self = this,
             settings = self.settings,
+            data = settings.data,
             groups = self.groups;
 
         self.el.innerHTML = '';
 
         // create a canvas if it doesn't already exist
-        self.canvas = self.canvas || d3.select(self.el)
+        self.canvas = d3.select(self.el)
             .append('svg')
             .attr('class', settings.class || 'graph')
             .attr('width', self.el.clientWidth)
@@ -169,11 +170,11 @@ BadAssGraph.prototype = {
             .attr('y', settings.margins.top);
 
         // create an axis group if it doesn't exist
-        groups.grid = groups.grid || self.canvas.append('g')
+        groups.grid = self.canvas.append('g')
             .classed('grid', true);
 
         // create an svg and group for the plotted data
-        groups.series = self.canvas.append('svg')
+        groups.all_series = self.canvas.append('svg')
             .style('overflow', 'hidden')
             .attr('x', settings.margins.left)
             .attr('y', settings.margins.top)
@@ -182,8 +183,15 @@ BadAssGraph.prototype = {
             .append('g')
             .classed('all-series', true);
 
+        // add groups for each series
+        groups.series = data.map(function (d, i) {
+            return groups.all_series.append('g')
+                .classed(d.class_name, true)
+                .classed('series', true);
+        });
+
         // create an axis group if it doesn't exist
-        groups.axis = groups.axis || self.canvas.append('g')
+        groups.axis = self.canvas.append('g')
             .classed('axis', true);
 
         add_stylesheet_rules([
@@ -195,10 +203,10 @@ BadAssGraph.prototype = {
         return this;
     },
 
-    add_data: function () {
+    add_data: function (data) {
         var self = this,
             settings = self.settings,
-            d = settings.data || [];
+            d = data || settings.data || [];
 
         // if no data was passed, generate data
         if (!d.length) {
@@ -218,8 +226,6 @@ BadAssGraph.prototype = {
                     });
                 }
             }
-            // set settings.data to generated data
-            settings.data = d;
         }
 
         // turn data as a histogram into a series object
@@ -240,6 +246,9 @@ BadAssGraph.prototype = {
                 });
             });
         }
+
+        // set settings.data to new data
+        settings.data = d;
 
         // augment the data
         d.forEach(function (series) {
@@ -277,6 +286,9 @@ BadAssGraph.prototype = {
 
         // record the x and y boundaries
         self.minmax_data();
+
+        // add scales based on the data
+        self.add_scales();
 
         return self;
     },
@@ -483,9 +495,49 @@ BadAssGraph.prototype = {
             };
 
         // ensures that mouseover events have access to .get_point()
-        groups.series.selectAll('.series-point').on('mouseover', mouseover);
+        groups.all_series.selectAll('.series-point').on('mouseover', mouseover);
 
         return self;
+    },
+
+    draw: function () {
+        var self = this,
+            settings = self.settings,
+            groups = self.groups,
+            data = settings.data;
+
+        // make sure there is data
+        if (!data) {
+            self.add_data();
+            data = settings.data;
+        }
+
+        // add the canvas and setup <g> elements
+        self.add_canvas();
+
+        // render the axis
+        self.add_axis();
+
+        // run add_series() for each series
+        data.forEach(function (d, i) {
+            self.add_series(d, i);
+        });
+
+        // add hover interaction
+        self.add_hover();
+
+        return self;
+    },
+
+    trigger: function (ev) {
+        (this.handlers[ev] || []).filter(function (h) {
+            return h(), false;
+        });
+    },
+
+    on: function (ev, func) {
+        this.handlers[ev] = this.handlers[ev] || [];
+        this.handlers[ev].push(func);
     },
 
     friendly_name: function (s) {
@@ -525,32 +577,11 @@ BadAssGraph.Line = {
         return self;
     },
 
-    draw: function () {
-        var self = this,
-            settings = self.settings,
-            groups = self.groups,
-            data = settings.data;
-
-        // add groups for each series
-        groups.lines = data.map(function (d, i) {
-            return groups.series.append('g')
-                .classed(d.class_name, true)
-                .classed('series', true);
-        });
-        
-        // add each series to the graph
-        data.forEach(function (d, i) {
-            self.add_series(d, i);
-        });
-
-        return self;
-    },
-
     add_series: function (series, index) {
         var self = this,
             settings = self.settings,
             scales = self.scales,
-            group = self.groups.lines[index],
+            group = self.groups.series[index],
             selector = '.' + series.class_name,
             x = scales.x,
             y = scales.y,
@@ -647,7 +678,7 @@ BadAssGraph.Line = {
         
         // generate the data for the augmented points
         data.forEach(function (series, i1) {
-            var points = groups.lines[i1][0][0].getElementsByClassName('series-point');
+            var points = groups.series[i1][0][0].getElementsByClassName('series-point');
             all_points = all_points.concat(series.values.map(function (d, i2) {
                 point_map.push({
                     series: series,
@@ -695,27 +726,6 @@ BadAssGraph.Column = {
         group: 'points', // whether to group certain graphs by series or points (x-value)
         stack: false, // whether to stack the data
         normalize: false // whether to normalize the data
-    },
-
-    draw: function () {
-        var self = this,
-            settings = self.settings,
-            groups = self.groups,
-            data = settings.data;
-
-        // add groups for each series
-        groups.columns = data.map(function (d, i) {
-            return groups.series.append('g')
-                .classed(d.class_name, true)
-                .classed('series', true);
-        });
-
-        // run add_series() for each series
-        data.forEach(function (d, i) {
-            self.add_series(d, i);
-        });
-
-        return self;
     },
 
     add_scales: function () {
@@ -788,7 +798,7 @@ BadAssGraph.Column = {
         var self = this,
             settings = self.settings,
             scales = self.scales,
-            group = self.groups.columns[index],
+            group = self.groups.series[index],
             selector = '.' + series.class_name,
             x = scales.x,
             x1 = scales.x1,
@@ -837,27 +847,6 @@ BadAssGraph.Bar = {
         group: 'points', // whether to group certain graphs by series or points (x-value)
         stack: false, // whether to stack the data
         normalize: false // whether to normalize the data
-    },
-
-    draw: function () {
-        var self = this,
-            settings = self.settings,
-            groups = self.groups,
-            data = settings.data;
-
-        // add groups for each series
-        groups.columns = data.map(function (d, i) {
-            return groups.series.append('g')
-                .classed(d.class_name, true)
-                .classed('series', true);
-        });
-
-        // run add_series() for each series
-        data.forEach(function (d, i) {
-            self.add_series(d, i);
-        });
-
-        return self;
     },
 
     add_scales: function () {
@@ -932,7 +921,7 @@ BadAssGraph.Bar = {
         var self = this,
             settings = self.settings,
             scales = self.scales,
-            group = self.groups.columns[index],
+            group = self.groups.series[index],
             selector = '.' + series.class_name,
             color = series.color || settings.colors(index),
             x = scales.x,
@@ -984,28 +973,6 @@ BadAssGraph.Pie = {
         starting_degrees: 0 // starting degrees of the first pie piece
     },
 
-    draw: function () {
-        var self = this,
-            settings = self.settings,
-            groups = self.groups,
-            data = settings.data;
-
-        // add groups for each series
-        groups.pies = data.map(function (d, i) {
-            return groups.series.append('g')
-                .classed(d.class_name, true)
-                .classed('series', true);
-        });
-
-        self.prev_angle = self.settings.min.y;
-
-        data.forEach(function (d, i) {
-            self.add_series(d, i);
-        });
-
-        return self;
-    },
-
     add_scales: function () {
         var self = this,
             settings = self.settings,
@@ -1028,12 +995,12 @@ BadAssGraph.Pie = {
         var self = this,
             settings = self.settings,
             scales = self.scales,
-            group = self.groups.pies[index],
+            group = self.groups.series[index],
             selector = '.' + series.class_name,
             histogram = series.values,
             y = scales.y,
             color = series.color || scales.colors(index),
-            prev_angle = self.prev_angle,
+            prev_angle = (self.prev_angle = typeof self.prev_angle === 'undefined' ? settings.min.y : self.prev_angle),
             arc0 = d3.svg.arc()
                 .innerRadius(settings.inner_radius)
                 .outerRadius(settings.inner_radius)
@@ -1078,8 +1045,6 @@ BadAssGraph.Pie = {
             .delay(index * 100)
             .duration(300)
             .attr('d', arc);
-
-        self.prev_outer_angle = settings.min.x;
 
         add_stylesheet_rules([
             [selector + ' .series-point', ['stroke', color], ['fill', color]],
