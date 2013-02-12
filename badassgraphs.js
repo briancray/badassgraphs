@@ -58,7 +58,7 @@ data: [{
     color: '#eee', // optional
     point_size: 30, // optional
     interpolation: null, //optional
-    values: [{x: 0, y: 1}, {x: 1, y: 2}, ...]
+    histogram: [{x: 0, y: 1}, {x: 1, y: 2}, ...]
 }, ...]
 type: 'line' or 'column' or 'bar'
 interpolation: 'basis', 'cardinal' (default) or 'linear' (see https://github.com/mbostock/d3/wiki/SVG-Shapes#wiki-line_interpolate for options)
@@ -227,9 +227,9 @@ BadAssGraph.prototype = {
             while (d.length < 3) {
                 d.push({
                     name: 'Sample ' + (d.length + 1),
-                    values: []
+                    histogram: []
                 });
-                histogram = d[d.length - 1].values;
+                histogram = d[d.length - 1].histogram;
                 min = Math.floor(Math.random() * 100);
                 while (histogram.length < 30) {
                     histogram.push({
@@ -245,7 +245,7 @@ BadAssGraph.prototype = {
         // augment the data
         d.forEach(function (series) {
             series.class_name = self.friendly_name(series.name);
-            series.values.forEach(function (point) {
+            series.histogram.forEach(function (point) {
                 point.series = series;
                 point.y0 = 0;
                 point.original = {
@@ -267,10 +267,10 @@ BadAssGraph.prototype = {
 
         // sort the data so the lowest line has the highest z-index
         d.sort(function (a, b) {
-            var am = d3.median(a.values, function (d) {
+            var am = d3.median(a.histogram, function (d) {
                     return d.y0 + d.y;
                 }),
-                bm = d3.median(b.values, function (d) {
+                bm = d3.median(b.histogram, function (d) {
                     return d.y0 + d.y;
                 });
             return bm - am
@@ -294,12 +294,12 @@ BadAssGraph.prototype = {
         // set min max for current data
         data.forEach(function (series) {
             series.max = {
-                x: d3.max(series.values, function (d) { return d.x }),
-                y: d3.max(series.values, function (d) { return d.y + d.y0 })
+                x: d3.max(series.histogram, function (d) { return d.x }),
+                y: d3.max(series.histogram, function (d) { return d.y + d.y0 })
             };
             series.min = {
-                x: d3.min(series.values, function (d) { return d.x }),
-                y: d3.min(series.values, function (d) { return d.y + d.y0 })
+                x: d3.min(series.histogram, function (d) { return d.x }),
+                y: d3.min(series.histogram, function (d) { return d.y + d.y0 })
             };
             x_max = Math.max(x_max, series.max.x);
             x_min = Math.min(x_min, series.min.x);
@@ -333,8 +333,8 @@ BadAssGraph.prototype = {
             // add the previous point's value to this point
             data.forEach(function (series, i1) {
                 if (i1 > 0) {
-                    series.values.forEach(function (d, i2) {
-                        var last = data[i1 - 1].values[i2];
+                    series.histogram.forEach(function (d, i2) {
+                        var last = data[i1 - 1].histogram[i2];
                         d.y0 = last.y0 + last.y;
                     });
                 }
@@ -343,7 +343,7 @@ BadAssGraph.prototype = {
         else if (group === 'series') {
             // reduce each series to the sum of the points
             data.forEach(function (series) {
-                series.values = [series.values.reduce(function (a, b) {
+                series.histogram = [series.histogram.reduce(function (a, b) {
                     a.y += b.y;
                     return a;
                 })];
@@ -361,15 +361,15 @@ BadAssGraph.prototype = {
             max_values = [];
 
         // find the maximum y value
-        data[0].values.forEach(function (d, i) {
+        data[0].histogram.forEach(function (d, i) {
             max = Number.NEGATIVE_INFINITY;
-            var s_max = d3.max(data, function (series) { return series.values[i].y + series.values[i].y0 });
+            var s_max = d3.max(data, function (series) { return series.histogram[i].y + series.histogram[i].y0 });
             max_values.push(Math.max(s_max, max));
         });
 
         // set each point as a proportion of the maximum y
         data.forEach(function (series) {
-            series.values.forEach(function (d, i) {
+            series.histogram.forEach(function (d, i) {
                 d.y /= max_values[i];
                 d.y0 /= max_values[i];
             });
@@ -552,7 +552,7 @@ BadAssGraph.Line = {
             selector = '.' + series.class_name,
             x = scales.x,
             y = scales.y,
-            histogram = series.values,
+            histogram = series.histogram,
             color = series.color || scales.colors(index),
             symbol = series.symbol || scales.symbols(index),
             point_size = series.point_size || settings.point_size,
@@ -646,7 +646,7 @@ BadAssGraph.Line = {
         // generate the data for the augmented points
         data.forEach(function (series, i1) {
             var points = groups.lines[i1][0][0].getElementsByClassName('series-point');
-            all_points = all_points.concat(series.values.map(function (d, i2) {
+            all_points = all_points.concat(series.histogram.map(function (d, i2) {
                 point_map.push({
                     series: series,
                     point: d,
@@ -744,10 +744,10 @@ BadAssGraph.Column = {
             }))
             .rangeRoundBands([0, settings.width], padding));
 
-        padding = (padding = data[0].values.length / self.scales.x.rangeBand() * 2) > .5 ? .5 : padding;
+        padding = (padding = data[0].histogram.length / self.scales.x.rangeBand() * 2) > .5 ? .5 : padding;
 
         self.add_scale('x1', d3.scale.ordinal()
-            .domain(data[0].values.map(function (d) {
+            .domain(data[0].histogram.map(function (d) {
                 return d.x
             }))
             .rangeRoundBands([0, self.scales.x.rangeBand()], padding));
@@ -762,11 +762,11 @@ BadAssGraph.Column = {
             padding = 0;
 
         if (settings.stack) {
-            padding = (padding = data[0].values.length / settings.width * 2) > .5 ? .5 : padding;
+            padding = (padding = data[0].histogram.length / settings.width * 2) > .5 ? .5 : padding;
         }
 
         self.add_scale('x', d3.scale.ordinal()
-            .domain(data[0].values.map(function (d) {
+            .domain(data[0].histogram.map(function (d) {
                 return d.x;
             }))
             .rangeRoundBands([0, settings.width], padding));
@@ -791,7 +791,7 @@ BadAssGraph.Column = {
             x = scales.x,
             x1 = scales.x1,
             y = scales.y,
-            histogram = series.values,
+            histogram = series.histogram,
             color = series.color || scales.colors(index);
 
         group.attr('transform', 'translate(0,' + settings.height + ')');
@@ -888,10 +888,10 @@ BadAssGraph.Bar = {
             }))
             .rangeRoundBands([0, settings.height], padding));
 
-        padding = (padding = data[0].values.length / self.scales.y.rangeBand() * 2) > .5 ? .5 : padding;
+        padding = (padding = data[0].histogram.length / self.scales.y.rangeBand() * 2) > .5 ? .5 : padding;
 
         self.add_scale('y1', d3.scale.ordinal()
-            .domain(settings.data[0].values.map(function (d) {
+            .domain(settings.data[0].histogram.map(function (d) {
                 return d.x
             }))
             .rangeRoundBands([0, self.scales.y.rangeBand()], padding));
@@ -906,11 +906,11 @@ BadAssGraph.Bar = {
             padding = 0;
 
         if (settings.stack) {
-            padding = (padding = data[0].values.length / settings.height * 2) > .5 ? .5 : padding;
+            padding = (padding = data[0].histogram.length / settings.height * 2) > .5 ? .5 : padding;
         }
 
         self.add_scale('y', d3.scale.ordinal()
-            .domain(data[0].values.map(function (d) {
+            .domain(data[0].histogram.map(function (d) {
                 return d.x
             }))
             .rangeRoundBands([0, settings.height], padding));
@@ -936,7 +936,7 @@ BadAssGraph.Bar = {
             x = scales.x,
             y = scales.y,
             y1 = scales.y1,
-            histogram = series.values;
+            histogram = series.histogram;
 
         group.attr('transform', 'translate(' + (-settings.width) + ',0)');
 
@@ -1012,7 +1012,7 @@ BadAssGraph.Pie = {
         BadAssGraph.prototype.add_scales.call(self);
 
         var sum = data.reduce(function (value, series) {
-            return value + series.values.reduce(function (value2, d) {
+            return value + series.histogram.reduce(function (value2, d) {
                 return value2 + d.y;
             }, 0);
         }, settings.min.y);
@@ -1028,7 +1028,7 @@ BadAssGraph.Pie = {
             scales = self.scales,
             group = self.groups.pies[index],
             selector = '.' + series.class_name,
-            histogram = series.values,
+            histogram = series.histogram,
             y = scales.y,
             color = series.color || scales.colors(index),
             prev_angle = self.prev_angle,
