@@ -58,12 +58,8 @@ data: [{
     color: '#eee', // optional
     point_size: 30, // optional
     interpolation: null, //optional
-    data: [{x: 0, y: 1}, {x: 1, y: 2}, ...]
+    values: [{x: 0, y: 1}, {x: 1, y: 2}, ...]
 }, ...]
-scales: {
-    x: [0, 10] or d3 scale
-    y: [0, 10] or d3 scale
-}
 type: 'line' or 'column' or 'bar'
 interpolation: 'basis', 'cardinal' (default) or 'linear' (see https://github.com/mbostock/d3/wiki/SVG-Shapes#wiki-line_interpolate for options)
 colors: ['#000', '#fff'] or d3 scale (see https://github.com/mbostock/d3/wiki/Ordinal-Scales#wiki-category10 for ready d3 scales)
@@ -85,7 +81,7 @@ var BadAssGraph = function (el, options) {
     var self = this;
 
     // keep a reference to the parent
-    self.el = el = get_type(el) === 'string' ? d3.select(el)[0][0] : el;
+    self.el = el = get_type(el) === 'string' ? document.querySelectorAll(el)[0] : el;
 
     // collection of <g>s
     self.groups = {};
@@ -113,9 +109,9 @@ var BadAssGraph = function (el, options) {
 
     // go through the draw steps
     self.add_canvas()
-        .add_data(self.settings.data)
-        .add_scales(self.settings.scales)
-        .add_axis(self.settings.axis)
+        .add_data()
+        .add_scales()
+        .add_axis()
         .draw()
         .add_hover();
 
@@ -123,42 +119,30 @@ var BadAssGraph = function (el, options) {
 };
 
 BadAssGraph.defaults = {
-    type: 'line', // line, bar, column
-    interpolation: 'cardinal', // cardinal, linear, step-before (for line and area), basis
+    type: 'line', // line, bar, column, pie
     colors: d3.scale.category10(), // default color scale per series
     margins: 0, // margins of the plotting area (axis sit outside of margins)
-    symbols: ['circle'], // circle, triangle, square
-    point_size: 0, // size of points
-    group: 'points', // whether to group certain graphs by series or points (x-value)
-    stack: false, // whether to stack the data
-    normalize: false, // whether to normalize the data
-    inner_radius: 10, // inner radius of pie graphs
-    degrees: 360, // degrees of total pie graph
-    starting_degrees: 0,
+    axis: [], // array of positions or array of options
+    data: null // data to plot, null will generate data
 };
 
 BadAssGraph.prototype = {
-    constructor: BadAssGraph,
-
     merge_options: function (el, options) {
         var self = this,
-            settings;
+            settings,
+            type = options.type || BadAssGraph.defaults.type,
+            defaults = extend(extend({}, BadAssGraph.defaults), BadAssGraph[type[0].toUpperCase() + type.slice(1).toLowerCase()].defaults);
 
         // store original options
         self.options = options || {};
 
         // extend defaults with options argument
-        self.settings = settings = extend(BadAssGraph.defaults, self.options || {});
+        self.settings = settings = extend(defaults, options || {});
 
         // create color scale (settings.colors can be a d3 scale or array)
         settings.colors = get_type(settings.colors) === 'array' ?
             d3.scale[settings.colors.length === 2 ? 'linear' : 'ordinal']().range(settings.colors) :
             settings.colors;
-
-        // create symbol scale (settings.symbols can be a d3 scale or array)
-        settings.symbols = get_type(settings.symbols) === 'array' ?
-            d3.scale.ordinal().range(settings.symbols) :
-            settings.symbols;
 
         // set margins based on settings (default is 0) (settings.margins can be a object with top, right, bottom, and left or a number)
         settings.margins = +settings.margins === +settings.margins ? 
@@ -231,10 +215,10 @@ BadAssGraph.prototype = {
         return this;
     },
 
-    add_data: function (d) {
-        d = d || [];
+    add_data: function () {
         var self = this,
-            settings = self.settings;
+            settings = self.settings,
+            d = settings.data || [];
 
         // if no data was passed, generate data
         if (!d.length) {
@@ -243,9 +227,9 @@ BadAssGraph.prototype = {
             while (d.length < 3) {
                 d.push({
                     name: 'Sample ' + (d.length + 1),
-                    data: []
+                    values: []
                 });
-                histogram = d[d.length - 1].data;
+                histogram = d[d.length - 1].values;
                 min = Math.floor(Math.random() * 100);
                 while (histogram.length < 30) {
                     histogram.push({
@@ -254,12 +238,14 @@ BadAssGraph.prototype = {
                     });
                 }
             }
+            // set settings.data to generated data
+            settings.data = d;
         }
 
         // augment the data
         d.forEach(function (series) {
             series.class_name = self.friendly_name(series.name);
-            series.data.forEach(function (point) {
+            series.values.forEach(function (point) {
                 point.series = series;
                 point.y0 = 0;
                 point.original = {
@@ -268,10 +254,6 @@ BadAssGraph.prototype = {
                 };
             });
         });
-
-
-        // set settings.data to passed data
-        settings.data = d;
 
         // stack the data if it's in the settings
         if (settings.stack) {
@@ -285,10 +267,10 @@ BadAssGraph.prototype = {
 
         // sort the data so the lowest line has the highest z-index
         d.sort(function (a, b) {
-            var am = d3.median(a.data, function (d) {
+            var am = d3.median(a.values, function (d) {
                     return d.y0 + d.y;
                 }),
-                bm = d3.median(b.data, function (d) {
+                bm = d3.median(b.values, function (d) {
                     return d.y0 + d.y;
                 });
             return bm - am
@@ -312,12 +294,12 @@ BadAssGraph.prototype = {
         // set min max for current data
         data.forEach(function (series) {
             series.max = {
-                x: d3.max(series.data, function (d) { return d.x }),
-                y: d3.max(series.data, function (d) { return d.y + d.y0 })
+                x: d3.max(series.values, function (d) { return d.x }),
+                y: d3.max(series.values, function (d) { return d.y + d.y0 })
             };
             series.min = {
-                x: d3.min(series.data, function (d) { return d.x }),
-                y: d3.min(series.data, function (d) { return d.y + d.y0 })
+                x: d3.min(series.values, function (d) { return d.x }),
+                y: d3.min(series.values, function (d) { return d.y + d.y0 })
             };
             x_max = Math.max(x_max, series.max.x);
             x_min = Math.min(x_min, series.min.x);
@@ -351,8 +333,8 @@ BadAssGraph.prototype = {
             // add the previous point's value to this point
             data.forEach(function (series, i1) {
                 if (i1 > 0) {
-                    series.data.forEach(function (d, i2) {
-                        var last = data[i1 - 1].data[i2];
+                    series.values.forEach(function (d, i2) {
+                        var last = data[i1 - 1].values[i2];
                         d.y0 = last.y0 + last.y;
                     });
                 }
@@ -361,7 +343,7 @@ BadAssGraph.prototype = {
         else if (group === 'series') {
             // reduce each series to the sum of the points
             data.forEach(function (series) {
-                series.data = [series.data.reduce(function (a, b) {
+                series.values = [series.values.reduce(function (a, b) {
                     a.y += b.y;
                     return a;
                 })];
@@ -379,15 +361,15 @@ BadAssGraph.prototype = {
             max_values = [];
 
         // find the maximum y value
-        data[0].data.forEach(function (d, i) {
+        data[0].values.forEach(function (d, i) {
             max = Number.NEGATIVE_INFINITY;
-            var s_max = d3.max(data, function (series) { return series.data[i].y + series.data[i].y0 });
+            var s_max = d3.max(data, function (series) { return series.values[i].y + series.values[i].y0 });
             max_values.push(Math.max(s_max, max));
         });
 
         // set each point as a proportion of the maximum y
         data.forEach(function (series) {
-            series.data.forEach(function (d, i) {
+            series.values.forEach(function (d, i) {
                 d.y /= max_values[i];
                 d.y0 /= max_values[i];
             });
@@ -396,9 +378,7 @@ BadAssGraph.prototype = {
         return self;
     },
         
-    add_scales: function (scales) {
-        scales = scales || {};
-
+    add_scales: function () {
         var self = this,
             settings = self.settings,
             data = settings.data,
@@ -406,10 +386,9 @@ BadAssGraph.prototype = {
             min = settings.min;
 
         // add standard scales (can be overridden later with add_scale())
-        self.add_scale('y', scales.y || d3.scale.linear().domain([max.y, 0]).range([0, settings.height]).nice());
-        self.add_scale('x', scales.x || d3.scale.linear().domain([min.x, max.x]).range([0, settings.width]));
-        self.add_scale('colors', scales.colors || settings.colors.domain([0, data.length - 1]));
-        self.add_scale('symbols', scales.symbols || settings.symbols.domain([0, data.length -1]));
+        self.add_scale('y', d3.scale.linear().domain([max.y, 0]).range([0, settings.height]).nice());
+        self.add_scale('x', d3.scale.linear().domain([min.x, max.x]).range([0, settings.width]));
+        self.add_scale('colors', settings.colors.domain([0, data.length - 1]));
 
         return self;
     },
@@ -421,11 +400,12 @@ BadAssGraph.prototype = {
         return this;
     },
 
-    add_axis: function (axis) {
+    add_axis: function () {
         var self = this,
             settings = self.settings,
             scales = self.scales,
-            groups = self.groups;
+            groups = self.groups,
+            axis = settings.axis || [];
 
         // add an axis for each argument passed (top, bottom, left, right)
         (get_type(axis) === 'array' ? axis : axis ? [axis] : []).forEach(function (axis) {
@@ -521,6 +501,28 @@ BadAssGraph.prototype = {
 };
 
 BadAssGraph.Line = {
+    defaults: {
+        interpolation: 'cardinal', // cardinal, linear, step-before (for line and area), basis
+        symbols: ['circle'], // circle, triangle, square
+        point_size: 0, // size of points
+        stack: false, // whether to stack the data
+        normalize: false // whether to normalize the data
+    },
+
+    add_scales: function () {
+        var self = this,
+            settings = self.settings;
+
+        BadAssGraph.prototype.add_scales.call(self); 
+
+        // create symbol scale (settings.symbols can be a d3 scale or array)
+        settings.symbols = get_type(settings.symbols) === 'array' ?
+            d3.scale.ordinal().range(settings.symbols) :
+            settings.symbols;
+
+        self.add_scale('symbols', settings.symbols.domain([0, data.length -1]));
+    },
+
     draw: function () {
         var self = this,
             settings = self.settings,
@@ -550,7 +552,7 @@ BadAssGraph.Line = {
             selector = '.' + series.class_name,
             x = scales.x,
             y = scales.y,
-            histogram = series.data,
+            histogram = series.values,
             color = series.color || scales.colors(index),
             symbol = series.symbol || scales.symbols(index),
             point_size = series.point_size || settings.point_size,
@@ -644,7 +646,7 @@ BadAssGraph.Line = {
         // generate the data for the augmented points
         data.forEach(function (series, i1) {
             var points = groups.lines[i1][0][0].getElementsByClassName('series-point');
-            all_points = all_points.concat(series.data.map(function (d, i2) {
+            all_points = all_points.concat(series.values.map(function (d, i2) {
                 point_map.push({
                     series: series,
                     point: d,
@@ -687,6 +689,12 @@ BadAssGraph.Line = {
 };
 
 BadAssGraph.Column = {
+    defaults: {
+        group: 'points', // whether to group certain graphs by series or points (x-value)
+        stack: false, // whether to stack the data
+        normalize: false // whether to normalize the data
+    },
+
     draw: function () {
         var self = this,
             settings = self.settings,
@@ -712,8 +720,7 @@ BadAssGraph.Column = {
         var self = this,
             settings = self.settings;
 
-        // call the origin add_scales
-        BadAssGraph.prototype.add_scales.call(self);
+        BadAssGraph.prototype.add_scales.call(self); 
 
         // generate x scales appropriate for a bar graph, based on grouping of points
         self['add_scales_' + settings.group]()
@@ -737,10 +744,10 @@ BadAssGraph.Column = {
             }))
             .rangeRoundBands([0, settings.width], padding));
 
-        padding = (padding = data[0].data.length / self.scales.x.rangeBand() * 2) > .5 ? .5 : padding;
+        padding = (padding = data[0].values.length / self.scales.x.rangeBand() * 2) > .5 ? .5 : padding;
 
         self.add_scale('x1', d3.scale.ordinal()
-            .domain(data[0].data.map(function (d) {
+            .domain(data[0].values.map(function (d) {
                 return d.x
             }))
             .rangeRoundBands([0, self.scales.x.rangeBand()], padding));
@@ -755,11 +762,11 @@ BadAssGraph.Column = {
             padding = 0;
 
         if (settings.stack) {
-            padding = (padding = data[0].data.length / settings.width * 2) > .5 ? .5 : padding;
+            padding = (padding = data[0].values.length / settings.width * 2) > .5 ? .5 : padding;
         }
 
         self.add_scale('x', d3.scale.ordinal()
-            .domain(data[0].data.map(function (d) {
+            .domain(data[0].values.map(function (d) {
                 return d.x;
             }))
             .rangeRoundBands([0, settings.width], padding));
@@ -784,7 +791,7 @@ BadAssGraph.Column = {
             x = scales.x,
             x1 = scales.x1,
             y = scales.y,
-            histogram = series.data,
+            histogram = series.values,
             color = series.color || scales.colors(index);
 
         group.attr('transform', 'translate(0,' + settings.height + ')');
@@ -824,6 +831,12 @@ BadAssGraph.Column = {
 };
 
 BadAssGraph.Bar = {
+    defaults: {
+        group: 'points', // whether to group certain graphs by series or points (x-value)
+        stack: false, // whether to stack the data
+        normalize: false // whether to normalize the data
+    },
+
     draw: function () {
         var self = this,
             settings = self.settings,
@@ -851,12 +864,8 @@ BadAssGraph.Bar = {
 
         BadAssGraph.prototype.add_scales.call(self);
 
-        if (settings.group === 'points') {
-            self.add_scales_points();
-        }
-        else {
-            self.add_scales_series();
-        }
+        // generate x scales appropriate for a bar graph, based on grouping of points
+        self['add_scales_' + settings.group]()
 
         self.add_scale('x', d3.scale.linear().domain([0, settings.max.y]).range([0, settings.width]).nice());
 
@@ -879,10 +888,10 @@ BadAssGraph.Bar = {
             }))
             .rangeRoundBands([0, settings.height], padding));
 
-        padding = (padding = data[0].data.length / self.scales.y.rangeBand() * 2) > .5 ? .5 : padding;
+        padding = (padding = data[0].values.length / self.scales.y.rangeBand() * 2) > .5 ? .5 : padding;
 
         self.add_scale('y1', d3.scale.ordinal()
-            .domain(settings.data[0].data.map(function (d) {
+            .domain(settings.data[0].values.map(function (d) {
                 return d.x
             }))
             .rangeRoundBands([0, self.scales.y.rangeBand()], padding));
@@ -897,11 +906,11 @@ BadAssGraph.Bar = {
             padding = 0;
 
         if (settings.stack) {
-            padding = (padding = data[0].data.length / settings.height * 2) > .5 ? .5 : padding;
+            padding = (padding = data[0].values.length / settings.height * 2) > .5 ? .5 : padding;
         }
 
         self.add_scale('y', d3.scale.ordinal()
-            .domain(data[0].data.map(function (d) {
+            .domain(data[0].values.map(function (d) {
                 return d.x
             }))
             .rangeRoundBands([0, settings.height], padding));
@@ -927,7 +936,7 @@ BadAssGraph.Bar = {
             x = scales.x,
             y = scales.y,
             y1 = scales.y1,
-            histogram = series.data;
+            histogram = series.values;
 
         group.attr('transform', 'translate(' + (-settings.width) + ',0)');
 
@@ -966,6 +975,13 @@ BadAssGraph.Bar = {
 };
 
 BadAssGraph.Pie = {
+    defaults: {
+        stack: true, // whether to stack the data
+        inner_radius: 10, // inner radius of pie graphs
+        degrees: 360, // degrees of total pie graph
+        starting_degrees: 0 // starting degrees of the first pie piece
+    },
+
     draw: function () {
         var self = this,
             settings = self.settings,
@@ -988,7 +1004,6 @@ BadAssGraph.Pie = {
         return self;
     },
 
-
     add_scales: function () {
         var self = this,
             settings = self.settings,
@@ -997,7 +1012,7 @@ BadAssGraph.Pie = {
         BadAssGraph.prototype.add_scales.call(self);
 
         var sum = data.reduce(function (value, series) {
-            return value + series.data.reduce(function (value2, d) {
+            return value + series.values.reduce(function (value2, d) {
                 return value2 + d.y;
             }, 0);
         }, settings.min.y);
@@ -1013,7 +1028,7 @@ BadAssGraph.Pie = {
             scales = self.scales,
             group = self.groups.pies[index],
             selector = '.' + series.class_name,
-            histogram = series.data,
+            histogram = series.values,
             y = scales.y,
             color = series.color || scales.colors(index),
             prev_angle = self.prev_angle,
