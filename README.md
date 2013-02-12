@@ -13,7 +13,8 @@ Graphing library built on d3
 * Line graphs
 * Column graphs
 * Bar graphs
-* More to come, including pie/donut, scatter plot, bubble
+* Pie graphs
+* More to come, including scatter plot, bubble
 
 Also, all plots can be grouped by series or points, stacked, and/or normalized to [0,1]
 
