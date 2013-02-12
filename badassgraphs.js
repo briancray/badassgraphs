@@ -109,7 +109,8 @@ BadAssGraph.prototype = {
         var self = this,
             settings,
             type = (options && options.type) || BadAssGraph.defaults.type,
-            defaults = extend(extend({}, BadAssGraph.defaults), BadAssGraph[type[0].toUpperCase() + type.slice(1).toLowerCase()].defaults);
+            defaults = extend(extend({}, BadAssGraph.defaults), BadAssGraph[type[0].toUpperCase() + type.slice(1).toLowerCase()].defaults),
+            resize;
 
         // store original options
         self.options = options || {};
@@ -127,8 +128,12 @@ BadAssGraph.prototype = {
             { top: +settings.margins, right: +settings.margins, bottom: +settings.margins, left: +settings.margins } :
             settings.margins || { top: 0, right: 0, bottom: 0, left: 0 };
 
-        // get dimensions based on margins
-        self.get_dimensions();
+        window.addEventListener('resize', function () {
+            window.clearTimeout(resize);
+            resize = window.setTimeout(function () {
+                self.el.childNodes.length && self.draw();
+            }, 100);
+        });
 
         return self;
     },
@@ -150,7 +155,8 @@ BadAssGraph.prototype = {
         var self = this,
             settings = self.settings,
             data = settings.data,
-            groups = self.groups;
+            groups = self.groups,
+            resize;
 
         self.el.innerHTML = '';
 
@@ -286,9 +292,6 @@ BadAssGraph.prototype = {
 
         // record the x and y boundaries
         self.minmax_data();
-
-        // add scales based on the data
-        self.add_scales();
 
         return self;
     },
@@ -511,6 +514,12 @@ BadAssGraph.prototype = {
             self.add_data();
             data = settings.data;
         }
+
+        // get dimensions based on margins
+        self.get_dimensions();
+
+        // add scales based on the data
+        self.add_scales();
 
         // add the canvas and setup <g> elements
         self.add_canvas();

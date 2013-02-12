@@ -27,10 +27,7 @@
 <script type="text/javascript" src="badassgraphs.js"></script>
 <script type="text/javascript">
 document.addEventListener('DOMContentLoaded', function() {
-    var g = BadAssGraph('#graph', {type: 'pie'}).add_data([2, 3, 4,2,4,5,3]).draw();
-    window.setTimeout(function () {
-        g.add_data([2, 3,3,24,25,2]).draw();
-    }, 1000);
+    var g = BadAssGraph('#graph', {type: 'line', point_size: 50, axis: ['left', 'bottom'], margins: 40}).draw();
     /*
     window.setTimeout(function () {
         g.toPNG();
