@@ -130,7 +130,7 @@ BadAssGraph.prototype = {
     merge_options: function (el, options) {
         var self = this,
             settings,
-            type = options.type || BadAssGraph.defaults.type,
+            type = (options && options.type) || BadAssGraph.defaults.type,
             defaults = extend(extend({}, BadAssGraph.defaults), BadAssGraph[type[0].toUpperCase() + type.slice(1).toLowerCase()].defaults);
 
         // store original options
@@ -240,6 +240,25 @@ BadAssGraph.prototype = {
             }
             // set settings.data to generated data
             settings.data = d;
+        }
+
+        // turn data as a histogram into a series object
+        else if (get_type(d[0]) === 'number') {
+            settings.data = d = [{
+                    name: 'My series',
+                    histogram: d.map(function (d, i) {
+                        return {x: i, y: d};
+                    })
+                }];
+        }
+
+        // handle histograms that don't have an x and y value
+        else if (get_type(d[0].histogram[0]) === 'number') {
+            d.forEach(function (series) {
+                series.histogram = series.histogram.map(function (d, i) {
+                    return {x: i, y: d};
+                });
+            });
         }
 
         // augment the data
@@ -511,7 +530,8 @@ BadAssGraph.Line = {
 
     add_scales: function () {
         var self = this,
-            settings = self.settings;
+            settings = self.settings,
+            data = settings.data;
 
         BadAssGraph.prototype.add_scales.call(self); 
 
@@ -520,7 +540,9 @@ BadAssGraph.Line = {
             d3.scale.ordinal().range(settings.symbols) :
             settings.symbols;
 
-        self.add_scale('symbols', settings.symbols.domain([0, data.length -1]));
+        self.add_scale('symbols', settings.symbols.domain([0, data.length - 1]));
+
+        return self;
     },
 
     draw: function () {
