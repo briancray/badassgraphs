@@ -151,6 +151,8 @@ BadAssGraph.prototype = {
             settings = self.settings,
             groups = self.groups;
 
+        self.el.innerHTML = '';
+
         // create a canvas if it doesn't already exist
         self.canvas = self.canvas || d3.select(self.el)
             .append('svg')
