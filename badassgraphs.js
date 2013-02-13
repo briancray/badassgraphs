@@ -672,16 +672,27 @@ BadAssGraph.Line = {
             point_map = [],
             mouseover = function (d, i) {
                 var e = d3.event,
-                    evt = document.createEvent('MouseEvent');
-                self.current_point = point_map[i];
-                evt.initMouseEvent('mouseover', true, true, e.view, e.detail, e.screenX, e.screenY, e.clientX, e.clientY, e.ctrlKey, e.altKey, e.shiftKey, e.metaKey, e.button, e.relatedTarget);
-                point_map[i].el.dispatchEvent(evt);
+                    evt = document.createEvent('MouseEvent'),
+                    point = point_map[i];
+                self.current_point = point;
+                evt.initEvent('mouseover', true, true);
+                point.el.dispatchEvent(evt);
             },
             mouseout = function (d, i) {
                 var e = d3.event,
-                    evt = document.createEvent('MouseEvent');
-                evt.initMouseEvent('mouseout', true, true, e.view, e.detail, e.screenX, e.screenY, e.clientX, e.clientY, e.ctrlKey, e.altKey, e.shiftKey, e.metaKey, e.button, e.relatedTarget);
-                point_map[i].el.dispatchEvent(evt);
+                    evt = document.createEvent('MouseEvent'),
+                    point = point_map[i];
+                self.current_point = point;
+                evt.initEvent('mouseout', true, true);
+                point.el.dispatchEvent(evt);
+            },
+            click = function (d, i) {
+                var e = d3.event,
+                    evt = document.createEvent('MouseEvent'),
+                    point = point_map[i];
+                self.current_point = point;
+                evt.initEvent('click', true, true);
+                point.el.dispatchEvent(evt);
             };
         
         // generate the data for the augmented points
@@ -723,7 +734,8 @@ BadAssGraph.Line = {
             })
             .style('fill', 'rgba(0, 0, 0, 0)')
             .on('mouseover', mouseover)
-            .on('mouseout', mouseout);
+            .on('mouseout', mouseout)
+            .on('click', click);
 
         return self;
     }
