@@ -70,20 +70,11 @@ var BadAssGraph = function (el, options) {
     // reference to scales
     self.scales = {};
 
-    // reference to events
-    self.events = null;
-
-    // reference to ranges
-    self.ranges = {};
-
     // stores last point interacted with
     self.current_point = {};
     
     // merge the options with the defaults
     self.merge_options(el, options);
-
-    // event handlers
-    self.handlers = {};
 
     // extend BadAssGraph with the type of graph requested
     self = extend(self, BadAssGraph[self.settings.type[0].toUpperCase() + self.settings.type.slice(1).toLowerCase()]);
@@ -401,7 +392,7 @@ BadAssGraph.prototype = {
 
         // add standard scales (can be overridden later with add_scale())
         self.add_scale('y', d3.scale.linear().domain([max.y, 0]).range([0, settings.height]).nice());
-        self.add_scale('x', d3.scale.linear().domain([min.x, max.x]).range([0, settings.width]));
+        self.add_scale('x', d3.scale.ordinal().domain(data[0].values.map(function (d) { return d.x })).rangePoints([0, settings.width]));
         self.add_scale('colors', settings.colors.domain([0, data.length - 1]));
 
         return self;
@@ -450,6 +441,12 @@ BadAssGraph.prototype = {
                 // whether to intelligently round the min and max values
                 nice: true,
 
+                // size of the major tick line
+                size: 5,
+
+                // set explicit tick values
+                values: null,
+
                 // how much padding between ticks and labels
                 padding: 1
 
@@ -460,7 +457,9 @@ BadAssGraph.prototype = {
                 .scale(axis.scale || marginize === 'height' ? scales.x : scales.y)
                 .orient(axis.position)
                 .tickPadding(axis.padding)
-                .tickFormat(axis.formatter);
+                .tickFormat(axis.formatter)
+                .tickSize(axis.size)
+                .tickValues(axis.values);
 
             // create a group for this specific axis
             groups.axis.append('g')

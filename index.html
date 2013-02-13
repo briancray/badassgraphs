@@ -27,7 +27,7 @@
 <script type="text/javascript" src="badassgraphs.js"></script>
 <script type="text/javascript">
 document.addEventListener('DOMContentLoaded', function() {
-    var g = BadAssGraph('#graph', {type: 'line', point_size: 50, axis: ['left', 'bottom'], margins: 40}).draw();
+    var g = BadAssGraph('#graph', {type: 'column', point_size: 50, axis: ['left', 'bottom'], margins: {left: 40, bottom: 40, right: 10, top: 10}}).draw();
     /*
     window.setTimeout(function () {
         g.toPNG();
