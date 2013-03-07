@@ -154,7 +154,7 @@ BadAssGraph.prototype = {
         // create a canvas if it doesn't already exist
         self.canvas = d3.select(self.el)
             .append('svg')
-            .attr('class', settings.class || 'graph')
+            .attr('class', 'graph')
             .attr('width', self.el.clientWidth)
             .attr('height', self.el.clientHeight);
 
@@ -432,6 +432,9 @@ BadAssGraph.prototype = {
                 // position will always be overridden by argument, just here for completedness
                 position: 'left',
 
+                // position of labels relative to axis
+                orient: null,
+
                 // a formatter function (text) to pass all labels through, defaults to raw label
                 formatter: null,
 
@@ -451,6 +454,8 @@ BadAssGraph.prototype = {
                 padding: 1
 
             }, axis);
+
+            axis.orient = axis.orient || axis.position;
 
             // create d3's axis constructor
             svg_axis = d3.svg.axis()
