@@ -122,7 +122,7 @@ BadAssGraph.prototype = {
         window.addEventListener('resize', function () {
             window.clearTimeout(resize);
             resize = window.setTimeout(function () {
-                self.el.childNodes.length && self.draw();
+                settings.width !== self.el.clientWidth - settings.margins.left - settings.margins.right && self.el.childNodes.length && self.draw();
             }, 100);
         });
 
